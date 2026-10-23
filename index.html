@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gesture Patrol — Kendali Ikon micro:bit</title>
+<meta name="description" content="Tunjukkan gestur Oke atau Peace ke kamera untuk mengganti ikon micro:bit lewat Bluetooth.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- Updated dependencies for stable camera support -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.7.4/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.4/dist/teachablemachine-image.min.js"></script>
+<style>
+:root{
+ --sky:#5bb8e8; --sky-paw:#7ccaf0; --navy:#163d6e; --navy-dark:#0e2a4f; --navy-soft:#2d5a8e;
+ --red:#ef3b36; --red-dark:#c22420; --yellow:#ffcb05; --yellow-dark:#e0a800;
+ --white:#ffffff; --ink:#163d6e; --muted:#5f7896; --green:#2fb35a; --steel:#3b78ad;
+ --font:'Comic Neue','Comic Sans MS',cursive; --display:'Fredoka','Comic Neue',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);font-weight:700;color:var(--ink);min-height:100vh;background-color:var(--sky);
+ background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cg fill='%237ccaf0'%3E%3Cellipse cx='45' cy='52' rx='9' ry='7'/%3E%3Ccircle cx='35' cy='40' r='4'/%3E%3Ccircle cx='45' cy='36' r='4'/%3E%3Ccircle cx='55' cy='40' r='4'/%3E%3C/g%3E%3C/svg%3E");}
+.topbar{background:var(--yellow);border-bottom:5px solid var(--yellow-dark);display:flex;justify-content:center;align-items:center;gap:18px;padding:14px 20px;flex-wrap:wrap;font-size:19px;letter-spacing:.5px}
+.btn{font:700 17px var(--font);border:none;border-radius:16px;padding:12px 26px;cursor:pointer;color:var(--white);background:var(--red);box-shadow:0 5px 0 var(--red-dark);transition:transform .1s,box-shadow .1s}
+.btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 7px 0 var(--red-dark)}
+.btn:active:not(:disabled){transform:translateY(4px);box-shadow:0 1px 0 var(--red-dark)}
+.btn.sm{padding:8px 22px;font-size:15px;border-radius:20px}
+.btn.yellow{background:var(--yellow);color:var(--ink);box-shadow:0 5px 0 var(--yellow-dark)}
+.btn.steel{background:var(--steel);box-shadow:0 5px 0 var(--navy-soft)}
+.btn.green{background:var(--green);box-shadow:0 5px 0 #1e8040}
+.btn.white{background:var(--white);color:var(--red);box-shadow:0 5px 0 #c9d6e3}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.wrap{max-width:1260px;margin:0 auto;padding:26px 30px 60px}
+nav{background:var(--navy);border-radius:24px;box-shadow:0 7px 0 var(--navy-dark);display:flex;align-items:center;gap:14px;padding:14px 22px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:14px;font:600 27px var(--display);color:var(--white);margin-right:34px}
+.brand-ic{width:54px;height:54px;border-radius:14px;background:var(--red);border:4px solid var(--white);display:grid;place-items:center;font-size:24px;box-shadow:0 4px 0 var(--red-dark)}
+.nav-link{text-decoration:none;display:flex;align-items:center;gap:10px;color:var(--white);font:600 18px var(--display);padding:10px 18px;border-radius:14px}
+.nav-link .ic{width:32px;height:32px;border-radius:9px;background:var(--navy-soft);display:grid;place-items:center;font-size:15px}
+.nav-link.active{background:var(--red);box-shadow:0 4px 0 var(--red-dark)}
+.nav-link.active .ic{background:#f76b5f}
+nav .btn{margin-left:auto}
+.hero{position:relative;text-align:center;padding:70px 20px 50px}
+.stamp{display:inline-block;background:var(--red);color:var(--white);font:600 32px var(--display);letter-spacing:3px;padding:12px 40px;border:4px solid var(--white);border-radius:12px;box-shadow:0 6px 0 var(--red-dark);transform:rotate(-2deg)}
+.hero h1{font:700 78px/1.1 var(--font);color:var(--white);margin-top:36px;text-shadow:0 5px 0 var(--steel)}
+.hero h1 em{font-style:normal;color:var(--yellow);text-shadow:0 5px 0 var(--yellow-dark)}
+.hero p{max-width:780px;margin:24px auto 0;color:var(--white);font-size:21px;line-height:1.55}
+.hero-actions{display:flex;justify-content:center;gap:18px;margin-top:40px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:10px;background:var(--white);border:4px solid #c6e6f8;border-radius:30px;padding:12px 24px;font-size:17px}
+.chip i{width:13px;height:13px;border-radius:50%;background:var(--yellow)}
+.chip.on i{background:var(--green)}
+.float{position:absolute;background:var(--white);border-radius:22px;padding:18px 26px;display:flex;align-items:center;gap:16px;box-shadow:0 7px 0 rgba(14,42,79,.18);text-align:left;z-index:2}
+.float .fi{width:50px;height:50px;border-radius:12px;display:grid;place-items:center;font-size:24px}
+.float b{display:block;font-size:17px}.float small{font-size:14px;color:var(--steel)}
+.float.l{left:-10px;top:190px;transform:rotate(-6deg)}.float.l .fi{background:var(--yellow);box-shadow:0 4px 0 var(--yellow-dark)}
+.float.r{right:-10px;top:225px;transform:rotate(5deg)}.float.r .fi{background:var(--red);box-shadow:0 4px 0 var(--red-dark)}
+.panel{background:var(--yellow);border:5px solid var(--navy);border-radius:32px;padding:18px;box-shadow:0 8px 0 var(--navy-dark)}
+.panel-in{background:var(--white);border-radius:24px;padding:34px}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:28px}
+.panel-head h2{font:600 32px var(--display)}.panel-head p{color:var(--muted);font-size:16px;margin-top:4px}
+.modes{display:flex;border:4px solid var(--navy);border-radius:18px;padding:5px;background:var(--yellow);gap:4px}
+.mode{font:600 17px var(--display);letter-spacing:2px;padding:8px 22px;border-radius:12px}
+.mode.active{background:var(--red);color:var(--white)}
+.grid{display:grid;grid-template-columns:1.2fr 1fr;gap:26px}
+.col{display:flex;flex-direction:column;gap:26px}
+.box{border:4px solid var(--navy);border-radius:22px;overflow:hidden;background:var(--white);box-shadow:0 6px 0 var(--sky)}
+.box-title{background:var(--navy);color:var(--white);font:600 18px var(--display);padding:12px 20px;display:flex;align-items:center;gap:10px}
+.box-body{padding:20px}
+.cam{position:relative;aspect-ratio:4/3;background:linear-gradient(var(--sky),#bfe6fa);overflow:hidden}
+.cam .ph{position:absolute;inset:0;display:grid;place-items:center;font-size:90px;opacity:.55}
+#webcam-container{position:relative;z-index:1;width:100%;height:100%;display:flex;justify-content:center;align-items:center}
+#webcam-container canvas{width:100% !important;height:100% !important;object-fit:cover}
+.prediction{text-align:center;padding:18px}
+.prediction-label{font:600 32px var(--display);color:var(--red);letter-spacing:1px}
+.prediction-conf{color:var(--muted);min-height:22px}
+.mb{display:flex;align-items:center;gap:22px}
+.mb-board{background:#1d1d1d;border-radius:16px;padding:16px;display:grid;grid-template-columns:repeat(5,18px);gap:8px;border:5px solid var(--yellow)}
+.mb-board i{width:18px;height:18px;border-radius:4px;background:#3a2626}
+.mb-board i.on{background:#ff3b30;box-shadow:0 0 10px #ff3b30}
+.mb-text{color:var(--muted)}.mb-text b{display:block;font:600 28px var(--display);color:var(--ink)}
+.status-item{display:flex;justify-content:space-between;padding:10px 0;border-bottom:3px dotted #c6e6f8;font-size:17px}
+.status-item:last-child{border:0}
+.status-label{color:var(--muted)}
+.status-value.ok{color:var(--green)}.status-value.off{color:var(--red)}.status-value.oke{color:var(--yellow-dark)}.status-value.peace{color:var(--red)}.status-value.other{color:var(--muted)}
+.btn-group{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.btn-group .btn{font-size:15px;padding:12px 8px}
+.log-box{font:14px/1.7 monospace;color:var(--muted);height:120px;overflow-y:auto}
+.info{font-size:15px;color:var(--muted);margin-top:14px;line-height:1.6}
+@media(max-width:900px){.float{display:none}.hero h1{font-size:46px}.grid{grid-template-columns:1fr}nav .btn{margin-left:0}}
+.scene{position:relative;display:flex;justify-content:flex-end;align-items:flex-end;gap:18px;margin:44px 0 0;min-height:200px}
+.scene .pup{height:175px;min-width:0;filter:drop-shadow(0 8px 7px rgba(14,42,79,.35));transform-origin:50% 95%;animation:bob 1.8s ease-in-out infinite}
+.scene .pup:nth-of-type(2){animation-delay:.4s}.scene .pup:nth-of-type(3){animation-delay:.8s}
+.scene .pups{display:flex;justify-content:flex-end;align-items:flex-end;gap:8px;max-width:70%;padding-bottom:4px}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-4deg)}25%{transform:translateY(-12px) rotate(0deg)}50%{transform:translateY(-20px) rotate(4deg)}75%{transform:translateY(-8px) rotate(0deg)}}
+@media(max-width:900px){.scene{min-height:160px;gap:12px}.scene .pup{height:135px}.scene .pups{gap:5px}}
+@media(max-width:480px){.scene{min-height:120px;gap:8px}.scene .pup{height:105px}.scene .pups{gap:4px}}
+@media(prefers-reduced-motion:reduce){.scene .pup{animation:none}}
+</style>
+</head>
+<body>
+<div class="topbar">🐾 SIAP BERTUGAS? KENDALIKAN MICRO:BIT DENGAN GESTUR! <button class="btn sm" onclick="document.getElementById('panel').scrollIntoView({behavior:'smooth'})">MULAI MISI!</button></div>
+<div class="wrap">
+ <nav>
+  <div class="brand"><span class="brand-ic">🐾</span>Gesture Patrol</div>
+  <a class="nav-link active"><span class="ic">🏠</span>Beranda</a>
+  <a class="nav-link" href="#panel"><span class="ic">👾</span>Dashboard</a>
+  <a class="nav-link" href="#cara"><span class="ic">🦴</span>Cara Pakai</a>
+  <a class="nav-link" href="#cara"><span class="ic">💻</span>Kode micro:bit</a>
+  <button class="btn yellow sm" id="nav-connect" onclick="connectBluetooth()">Hubungkan</button>
+ </nav>
+
+ <section class="hero">
+  <div class="float l"><span class="fi">👌</span><div><b>Gestur Oke</b><small>Ikon centang di micro:bit</small></div></div>
+  <div class="float r"><span class="fi">✌️</span><div><b>Gestur Peace</b><small>Ikon damai di micro:bit</small></div></div>
+  <div class="stamp">GESTUR PATROL</div>
+  <h1>Kendali Ikon micro:bit<br>dengan <em>Gestur Tangan</em></h1>
+  <p>Tunjukkan gestur Oke atau Peace ke kamera. Website membedakan gestur lewat model Teachable Machine, lalu mengirim perintah ke micro:bit lewat Bluetooth untuk mengganti ikonnya. Tidak ada misi yang terlalu besar, tidak ada gestur yang terlalu kecil!</p>
+  <div class="hero-actions">
+   <button class="btn" id="hero-connect" onclick="connectBluetooth()">🐾 Hubungkan micro:bit</button>
+   <button class="btn steel" id="hero-start" onclick="startCamera()">Mulai Kamera</button>
+   <span class="chip" id="badge"><i></i>Belum terhubung</span>
+  </div>
+ <div class="scene"><div class="pups"><img class="pup" src="data:image/png;base64,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" alt="Dog Paw Patrol 1"><img class="pup" src="data:image/png;base64,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" alt="Dog Paw Patrol 2"><img class="pup" src="data:image/png;base64,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" alt="Dog Paw Patrol 3"></div></div>
+ </section>
+
+ <section class="panel" id="panel">
+  <div class="panel-in">
+   <div class="panel-head">
+    <div>
+     <h2>Dashboard Misi</h2>
+     <p>Tunjukkan gestur tangan ke kamera untuk mengirim ikon ke micro:bit secara langsung.</p>
+    </div>
+    <div class="modes"><span class="mode active">GESTURE MODE</span></div>
+   </div>
+
+   <div class="grid">
+    <div class="col">
+     <div class="box">
+      <div class="box-title">📹 Kamera Patroli</div>
+      <div class="box-body">
+       <div class="cam">
+        <div class="ph">📷</div>
+        <div id="webcam-container"></div>
+       </div>
+       <div class="prediction">
+        <div class="prediction-label" id="pred-label">MEMUAT...</div>
+        <div class="prediction-conf" id="pred-conf">Kamera belum aktif</div>
+       </div>
+      </div>
+     </div>
+    </div>
+
+    <div class="col">
+     <div class="box">
+      <div class="box-title">👾 Tampilan micro:bit</div>
+      <div class="box-body">
+       <div class="mb">
+        <div class="mb-board" id="mb-board"></div>
+        <div class="mb-text">
+         <span>Ikon Aktif</span>
+         <b id="mb-icon-name">KOSONG</b>
+        </div>
+       </div>
+      </div>
+     </div>
+
+     <div class="box">
+      <div class="box-title">📊 Status Koneksi</div>
+      <div class="box-body">
+       <div class="status-item"><span class="status-label">Status Bluetooth</span><span class="status-value off" id="st-bt">Terputus</span></div>
+       <div class="status-item"><span class="status-label">Status Kamera</span><span class="status-value off" id="st-cam">Mati</span></div>
+       <div class="status-item"><span class="status-label">Gestur Terdeteksi</span><span class="status-value other" id="st-gest">-</span></div>
+      </div>
+     </div>
+
+     <div class="box">
+      <div class="box-title">🕹️ Uji Manual</div>
+      <div class="box-body">
+       <div class="btn-group">
+        <button class="btn green sm" onclick="sendIcon('OKE')">Kirim OKE (✔️)</button>
+        <button class="btn yellow sm" onclick="sendIcon('PEACE')">Kirim PEACE (✌️)</button>
+       </div>
+      </div>
+     </div>
+
+     <div class="box">
+      <div class="box-title">📜 Log Aktivitas</div>
+      <div class="box-body">
+       <div class="log-box" id="log-box"></div>
+      </div>
+     </div>
+
+    </div>
+   </div>
+  </div>
+ </section>
+</div>
+
+<script>
+// Microbit Matrices
+const ICONS = {
+ 'OKE': [
+  0,0,0,0,0,
+  0,0,0,0,1,
+  0,0,0,1,0,
+  1,0,1,0,0,
+  0,1,0,0,0
+ ],
+ 'PEACE': [
+  0,1,0,1,0,
+  0,1,0,1,0,
+  0,0,1,0,0,
+  0,1,0,1,0,
+  0,0,1,0,0
+ ],
+ 'NONE': [
+  0,0,0,0,0,
+  0,0,0,0,0,
+  0,0,0,0,0,
+  0,0,0,0,0,
+  0,0,0,0,0
+ ]
+};
+
+let model, webcam, maxPredictions;
+let bluetoothDevice, gattServer, uartService, rxCharacteristic, txCharacteristic;
+let isConnected = false;
+let isCamActive = false;
+let lastGesture = "";
+
+// Teachable Machine URL
+const URL = "https://teachablemachine.withgoogle.com/models/H2E4x93K_/";
+
+// Initialize Display Board
+function initBoard() {
+ const board = document.getElementById('mb-board');
+ board.innerHTML = '';
+ for (let i = 0; i < 25; i++) {
+  const led = document.createElement('i');
+  board.appendChild(led);
+ }
+ updateBoard('NONE');
+}
+
+function updateBoard(icon) {
+ const board = document.getElementById('mb-board');
+ const leds = board.querySelectorAll('i');
+ const matrix = ICONS[icon] || ICONS['NONE'];
+ leds.forEach((led, idx) => {
+  if (matrix[idx] === 1) {
+   led.classList.add('on');
+  } else {
+   led.classList.remove('on');
+  }
+ });
+ document.getElementById('mb-icon-name').innerText = icon;
+}
+
+function log(msg) {
+ const logBox = document.getElementById('log-box');
+ const time = new Date().toLocaleTimeString();
+ logBox.innerHTML += `[${time}] ${msg}<br>`;
+ logBox.scrollTop = logBox.scrollHeight;
+}
+
+// Bluetooth Functions
+async function connectBluetooth() {
+ try {
+  log("Mencari perangkat micro:bit...");
+  bluetoothDevice = await navigator.bluetooth.requestDevice({
+   filters: [{ namePrefix: 'BBC micro:bit' }],
+   optionalServices: ['6e400001-b5a3-f393-e0a9-e50e24dcca9e']
+  });
+
+  log("Menghubungkan ke GATT Server...");
+  gattServer = await bluetoothDevice.gatt.connect();
+
+  log("Mendapatkan Layanan UART...");
+  uartService = await gattServer.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
+
+  log("Mendapatkan Karakteristik TX/RX...");
+  rxCharacteristic = await uartService.getCharacteristic('6e400002-b5a3-f393-e0a9-e50e24dcca9e');
+  
+  isConnected = true;
+  document.getElementById('st-bt').innerText = "Terhubung";
+  document.getElementById('st-bt').className = "status-value ok";
+  document.getElementById('badge').innerHTML = "<i></i>Terhubung";
+  document.getElementById('badge').classList.add('on');
+  document.getElementById('hero-start').disabled = false;
+  log("Bluetooth Terhubung Berhasil!");
+ } catch (error) {
+  log("Error Bluetooth: " + error);
+ }
+}
+
+async function sendIcon(iconName) {
+ updateBoard(iconName);
+ log("Kirim Ikon: " + iconName);
+ if (isConnected && rxCharacteristic) {
+  try {
+   let encoder = new TextEncoder();
+   await rxCharacteristic.writeValue(encoder.encode(iconName + "\n"));
+  } catch (e) {
+   log("Gagal mengirim via Bluetooth: " + e);
+  }
+ }
+}
+
+// Camera & AI Functions (FIXED & IMPROVED)
+async function startCamera() {
+ try {
+  log("Memuat model Teachable Machine...");
+  const modelURL = URL + "model.json";
+  const metadataURL = URL + "metadata.json";
+
+  model = await tmImage.load(modelURL, metadataURL);
+  maxPredictions = model.getTotalClasses();
+
+  log("Menyiapkan Kamera...");
+  const flip = true;
+  webcam = new tmImage.Webcam(320, 240, flip); // init webcam
+  await webcam.setup(); // request access to the webcam
+  await webcam.play();
+  window.requestAnimationFrame(loop);
+
+  // append canvas to DOM
+  const webcamContainer = document.getElementById("webcam-container");
+  webcamContainer.innerHTML = "";
+  webcamContainer.appendChild(webcam.canvas);
+
+  isCamActive = true;
+  document.getElementById('st-cam').innerText = "Aktif";
+  document.getElementById('st-cam').className = "status-value ok";
+  log("Kamera Berhasil Dinyalakan!");
+ } catch (err) {
+  log("Error Kamera: " + err.message);
+  alert("Gagal membuka kamera. Pastikan izin kamera telah diberikan.");
+ }
+}
+
+async function loop() {
+ if (isCamActive) {
+  webcam.update();
+  await predict();
+  window.requestAnimationFrame(loop);
+ }
+}
+
+async function predict() {
+ const prediction = await model.predict(webcam.canvas);
+ let highestProb = 0;
+ let currentGesture = "";
+
+ for (let i = 0; i < maxPredictions; i++) {
+  if (prediction[i].probability > highestProb) {
+   highestProb = prediction[i].probability;
+   currentGesture = prediction[i].className;
+  }
+ }
+
+ const labelEl = document.getElementById('pred-label');
+ const confEl = document.getElementById('pred-conf');
+ const gestEl = document.getElementById('st-gest');
+
+ if (highestProb > 0.8) {
+  labelEl.innerText = currentGesture.toUpperCase();
+  confEl.innerText = `Akurasi: ${(highestProb * 100).toFixed(1)}%`;
+  gestEl.innerText = currentGesture;
+
+  if (currentGesture !== lastGesture) {
+   lastGesture = currentGesture;
+   if (currentGesture.toUpperCase().includes("OKE")) {
+    sendIcon('OKE');
+   } else if (currentGesture.toUpperCase().includes("PEACE")) {
+    sendIcon('PEACE');
+   }
+  }
+ } else {
+  labelEl.innerText = "MENUNGGU...";
+  confEl.innerText = "Tunjukkan gestur jelas";
+  gestEl.innerText = "-";
+ }
+}
+
+// On Load
+window.addEventListener('DOMContentLoaded', () => {
+ initBoard();
+ document.getElementById('hero-start').disabled = false; // Memungkinkan tes kamera tanpa BT terlebih dahulu jika diperlukan
+ log("Sistem Siap. Silakan hubungkan Bluetooth atau nyalakan kamera.");
+});
+</script>
+</body>
+</html>
